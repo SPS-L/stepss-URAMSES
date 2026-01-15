@@ -470,4 +470,3 @@ subroutine exc_GENERIC4(nb,name,mode,nbxvar,nbzvar,nbdata,nbaddpar,prm,parname,n
    end select
 
 end subroutine exc_GENERIC4
-

@@ -563,4 +563,3 @@ subroutine exc_ST1A(nb,name,mode,nbxvar,nbzvar,nbdata,nbaddpar,prm,parname,nbobs
    end select
 
 end subroutine exc_ST1A
-
