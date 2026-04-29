@@ -13,6 +13,7 @@ URAMSES is a project that enables the integration of custom user models into PyR
 - [Building](#building)
   - [Linux](#building-on-linux)
   - [Windows](#building-on-windows)
+  - [Docker](#building-with-docker)
 - [Adding Custom Models](#adding-custom-models)
 - [Using Your Models](#using-your-models)
 - [Examples](#examples)
@@ -49,6 +50,10 @@ sudo dnf install gcc-gfortran openblas-devel
 sudo pacman -S gcc-fortran openblas
 ```
 
+### Docker (any platform)
+- **Docker** with Docker Compose (v2)
+- No compiler or library installation required
+
 ## Project Structure
 
 ```
@@ -79,6 +84,11 @@ URAMSES/
 ├── exeramses.vfproj        # Executable project - dynsim.exe (Windows)
 ├── MDL.vfproj              # Model library project (Windows)
 ├── Makefile.gfortran       # Makefile for Linux builds
+├── docker/                 # Docker build environment
+│   └── Dockerfile          # Ubuntu 24.04 + gfortran + OpenBLAS
+├── docker-compose.yml      # One-command Docker build
+├── build.sh                # Docker build helper script
+├── output/                 # Docker build output (ramses.so)
 ├── Release_intel_w64/      # Compiled output (Windows)
 └── Release_gnu_l/          # Compiled output (Linux)
 ```
@@ -109,6 +119,12 @@ make -f Makefile.gfortran
 2. Select `Release|x64` configuration
 3. Build → Build Solution
 4. Run `Release_intel_w64\dynsim.exe`
+
+### Docker
+```bash
+docker compose build              # One-time image build
+docker compose run --rm uramses-build  # Build ramses.so → output/ramses.so
+```
 
 ## Building
 
@@ -172,6 +188,50 @@ The solution contains three main projects:
 All compiled files will be created in `Release_intel_w64/`:
 - `ramses.dll` - For PyRAMSES/STEPSS integration
 - `dynsim.exe` - Standalone executable
+
+### Building with Docker
+
+Docker provides a self-contained build environment — no compiler or library installation required on the host.
+
+#### Project Files
+
+```
+docker/Dockerfile       # Build environment image (Ubuntu 24.04, gfortran, OpenBLAS)
+docker-compose.yml      # One-command build configuration
+build.sh                # Convenience wrapper script
+```
+
+#### One-Time Setup
+
+```bash
+docker compose build    # Builds the image (~2 min)
+```
+
+#### Build ramses.so
+
+```bash
+# Option 1: docker compose
+docker compose run --rm uramses-build
+
+# Option 2: helper script
+./build.sh
+```
+
+The compiled `ramses.so` is written to the `output/` directory on the host.
+
+#### How It Works
+
+- The repository root is bind-mounted into the container at `/uramses`
+- The container runs `make -f Makefile.gfortran dll` and copies the result to `/output`
+- Edits to `my_models/` on the host are visible immediately — no image rebuild needed
+- Only the shared library (`ramses.so`) is built, not the standalone executable
+
+#### Adding Models with Docker
+
+1. Create or edit model files in `my_models/` on the host
+2. Register in the appropriate `src/usr_*_models.f90`
+3. Run `docker compose run --rm uramses-build` (or `./build.sh`)
+4. Copy `output/ramses.so` to your PyRAMSES/STEPSS environment
 
 ## Adding Custom Models
 
@@ -344,6 +404,24 @@ The `my_models/` directory contains several example models:
 3. **DLL Loading**: Check that the path to `ramses.dll` is correct in PyRAMSES
 4. **Model Parameters**: Ensure parameter files are properly formatted
 
+### Docker Issues
+
+1. **`docker compose` not found**
+   - Ensure Docker Desktop or Docker Engine with Compose v2 is installed
+   - Older installations may need `docker-compose` (with hyphen) instead
+
+2. **Permission denied on `output/`**
+   - The `output/` directory is created by the container. If permissions are wrong:
+     ```bash
+     sudo chown -R $(id -u):$(id -g) output/
+     ```
+
+3. **Stale build artifacts**
+   - The container bind-mounts the repo, so old object files may persist:
+     ```bash
+     docker compose run --rm uramses-build make -f Makefile.gfortran clean dll
+     ```
+
 ### Debug Tips
 
 - Check compiler output for compilation errors
@@ -353,16 +431,17 @@ The `my_models/` directory contains several example models:
 
 ## Platform Comparison
 
-| Feature | Linux | Windows |
-|---------|-------|---------|
-| Compiler | gfortran | Intel Fortran |
-| BLAS Library | OpenBLAS | Intel MKL |
-| Build System | Makefile | Visual Studio |
-| Output Library | `ramses.so` | `ramses.dll` |
-| Output Executable | `dynsim` | `dynsim.exe` |
-| Output Directory | `Release_gnu_l/` | `Release_intel_w64/` |
-| Module Directory | `modules_lin/` | `modules/` |
-| Model Auto-Detection | ✅ Automatic (wildcard) | ❌ Manual (VS project) |
+| Feature | Linux | Windows | Docker |
+|---------|-------|---------|--------|
+| Compiler | gfortran | Intel Fortran | gfortran (in container) |
+| BLAS Library | OpenBLAS | Intel MKL | OpenBLAS (in container) |
+| Build System | Makefile | Visual Studio | Docker Compose |
+| Output Library | `ramses.so` | `ramses.dll` | `ramses.so` |
+| Output Executable | `dynsim` | `dynsim.exe` | N/A |
+| Output Directory | `Release_gnu_l/` | `Release_intel_w64/` | `output/` |
+| Module Directory | `modules_lin/` | `modules/` | `modules_lin/` |
+| Model Auto-Detection | ✅ Automatic (wildcard) | ❌ Manual (VS project) | ✅ Automatic (wildcard) |
+| Host Prerequisites | gfortran, OpenBLAS | VS, Intel Fortran | Docker only |
 
 ## Documentation & Support
 
@@ -383,4 +462,4 @@ This project is licensed under the Academic Public License. See [LICENSE.rst](LI
 
 ---
 
-**Last Updated:** January 2026
+**Last Updated:** April 2026

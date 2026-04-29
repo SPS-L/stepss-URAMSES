@@ -1,5 +1,6 @@
 /Release_*
 /Debug_*
+/output/
 *.user
 *.html
 *.layout
